@@ -14,15 +14,21 @@ from colbert.modeling.checkpoint import Checkpoint
 from colbert.indexing.collection_encoder import CollectionEncoder
 
 
-_cf = ColBERTConfig(checkpoint='checkpoints/colbertv2.0')
-_cp = Checkpoint(_cf.checkpoint, colbert_config=_cf)
-encoder = CollectionEncoder(_cf, _cp)
+thread_local_storage = threading.local()
+def get_threadlocals():
+    if not hasattr(thread_local_storage, 'db_handle'):
+        cf = ColBERTConfig(checkpoint='checkpoints/colbertv2.0')
+        cp = Checkpoint(cf.checkpoint, colbert_config=cf)
+        thread_local_storage.encoder = CollectionEncoder(cf, cp)
+    return thread_local_storage.encoder
 
 
 def process_file(full_path: Path):
+    encoder = get_threadlocals()
+
     compressed_path = full_path.with_suffix('.json.gz')
     if compressed_path.exists():
-        print(f'Skipping {full_path} because {compressed_path} already exists')
+        print(f'{compressed_path} already exists')
         return
 
     # load json contents
@@ -54,8 +60,10 @@ def process_file(full_path: Path):
 
 def main():
     print("Inserting data")
-    for path in Path('../wiki50k/chunks').iterdir():
-        process_file(path)
+    num_threads = 8
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        chunks_path = Path('../wiki50k/chunks')
+        executor.map(process_file, chunks_path.iterdir())
 
 if __name__ == '__main__':
     main()

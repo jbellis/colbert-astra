@@ -13,6 +13,9 @@ from colbert.infra.config import ColBERTConfig
 from colbert.modeling.checkpoint import Checkpoint
 from colbert.indexing.collection_encoder import CollectionEncoder
 
+#
+# Compute embeddings for articles in .json files, and save as .json.gz
+#
 
 thread_local_storage = threading.local()
 def get_threadlocals():

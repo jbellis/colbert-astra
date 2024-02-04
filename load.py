@@ -26,6 +26,11 @@ def get_threadlocals():
 def load_file(compressed_path):
     db = get_threadlocals()
 
+    loaded_path = compressed_path.with_suffix('.loaded')
+    if loaded_path.exists():
+        print(f'{compressed_path} already loaded')
+        return
+
     # load json contents
     with gzip.open(compressed_path, 'rt', encoding='UTF-8') as f:
         doc = json.load(f)
@@ -42,6 +47,8 @@ def load_file(compressed_path):
         part += 1
         n_embeddings += len(embeddings)
 
+    # create an empty file to mark this as completed
+    loaded_path.touch()
     print(f'Loaded {title} in {part} parts and {n_embeddings} embeddings')
 
 

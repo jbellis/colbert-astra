@@ -5,22 +5,23 @@ create keyspace colbert WITH replication = {'class': 'SimpleStrategy', 'replicat
 --   title text,
 -- );
 
-CREATE TABLE colbert.chunks (
+USE colbert25k;
+CREATE TABLE chunks (
     title text,
     part int,
     body text,
     ada002_embedding vector<float, 1536>,
     PRIMARY KEY (title, part)
 );
-CREATE CUSTOM INDEX openai_ann ON colbert.chunks(ada002_embedding) USING 'StorageAttachedIndex'
+CREATE CUSTOM INDEX openai_ann ON chunks(ada002_embedding) USING 'StorageAttachedIndex'
   WITH OPTIONS = { 'similarity_function': 'DOT_PRODUCT' };
 
-CREATE TABLE colbert.colbert_embeddings (
+CREATE TABLE colbert_embeddings (
     title text,
     part int,
     embedding_id int,
     bert_embedding vector<float, 128>,
     PRIMARY KEY (title, part, embedding_id)
 );
-CREATE CUSTOM INDEX colbert_ann ON colbert.colbert_embeddings(bert_embedding) USING 'StorageAttachedIndex'
+CREATE CUSTOM INDEX colbert_ann ON colbert_embeddings(bert_embedding) USING 'StorageAttachedIndex'
   WITH OPTIONS = { 'similarity_function': 'DOT_PRODUCT' };

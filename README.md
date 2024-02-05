@@ -1,6 +1,11 @@
+# Colbert on Astra #
+
+POC of ColBERT search, compared with vanilla DPR.
+
 # Requirements #
 
-Assumes you have Cassandra (vsearch branch) running locally.  Should "just work" with Astra given minor changes to db.py.
+* Assumes you have Cassandra (vsearch branch) running locally.  Should "just work" with Astra given minor changes to db.py.
+* Dataset with DPR ada002 embeddings already computed, this code does not do that (but adding it would just be a few lines)
 
 # Usage #
 

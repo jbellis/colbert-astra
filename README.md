@@ -6,6 +6,8 @@ POC of ColBERT search, compared with vanilla DPR.
 
 * Assumes you have Cassandra (vsearch branch) running locally.  Should "just work" with Astra given minor changes to db.py.
 * Dataset with DPR ada002 embeddings already computed, this code does not do that (but adding it would just be a few lines)
+* Download the ColBERT model from https://downloads.cs.stanford.edu/nlp/data/colbert/colbertv2/colbertv2.0.tar.gz and extract
+  it to the checkpoints/ subdirectory
 
 # Usage #
 

@@ -50,8 +50,11 @@ def index():
     results = None
     if request.method == 'POST':
         query = request.form['query']
-        ada_results = retrieve_ada(query)  # Ensure this returns a list of dicts with 'title' and 'body'
+        ada_results = [] # retrieve_ada(query)  # Ensure this returns a list of dicts with 'title' and 'body'
+        import time
+        start = time.time()
         colbert_results = retrieve_colbert(query)  # Ensure this returns a list of dicts with 'title' and 'body'
+        print(f"ColBERT took {time.time() - start:.2f} seconds")
         results = {'ada': ada_results, 'colbert': colbert_results}
     return render_template_string(HTML_TEMPLATE, results=results)
 

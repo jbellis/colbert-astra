@@ -1,15 +1,15 @@
 from db import DB
 from openai import OpenAI
-from torch import tensor
+import torch
 from colbert.infra.config import ColBERTConfig
 from colbert.modeling.checkpoint import Checkpoint
-
+from colbert.modeling.colbert import ColBERT
 
 db = DB()
 
 _cf = ColBERTConfig(checkpoint='checkpoints/colbertv2.0')
 _cp = Checkpoint(_cf.checkpoint, colbert_config=_cf)
-encode = lambda q: _cp.queryFromText([q])[0]
+encode = lambda q: _cp.queryFromText([q])
 
 
 client = OpenAI(api_key=open('openai.key', 'r').read().splitlines()[0])
@@ -29,9 +29,29 @@ def retrieve_ada(query):
 def maxsim(qv, embeddings):
     return max(qv @ e for e in embeddings)
 
+# construct a single-dimension tensor with all the embeddings packed into it
+# i.e. a tensor of [d1.e1, d1.e2, d2.e1, d2.e2, d2.e3, dN.e1, .. dN.eM] for doc parts 1..N and embeddings 1..M
+# since each doc can have a different number of embeddings, we also return a tensor of how many embeddings correspond to each doc
+def load_data_and_construct_tensors(L, db):
+    all_embeddings = []
+    lengths = []
+
+    for title, part in L:
+        rows = db.session.execute(db.query_colbert_parts_stmt, [title, part])
+        embeddings_for_part = [torch.tensor(row.bert_embedding) for row in rows]
+        packed_one_part = torch.stack(embeddings_for_part)
+        all_embeddings.append(packed_one_part)
+        lengths.append(packed_one_part.shape[0])
+
+    D_packed = torch.cat(all_embeddings)
+    D_lengths = torch.tensor(lengths, dtype=torch.long)
+
+    return D_packed, D_lengths
+
 def retrieve_colbert(query):
     K = 5
-    query_encodings = encode(query)
+    Q = encode(query)
+    query_encodings = Q[0]
     # find the most relevant documents
     docparts_per_query = {}
     for qv in query_encodings:
@@ -39,7 +59,7 @@ def retrieve_colbert(query):
         # set the value to the max of any existing value and the new one
         for row in rows:
             key = (row.title, row.part, qv)
-            value = qv @ tensor(row.bert_embedding)
+            value = qv @ torch.tensor(row.bert_embedding)
             docparts_per_query[key] = max(docparts_per_query.get(key, -1), value)
 
     # group by document part, summing the score
@@ -51,10 +71,16 @@ def retrieve_colbert(query):
 
     # fully score each document in the top 2K
     scores = {}
-    for title, part in L:
-        rows = db.session.execute(db.query_colbert_parts_stmt, [title, part])
-        embeddings_for_part = [tensor(row.bert_embedding) for row in rows]
-        scores[(title, part)] = sum(maxsim(qv, embeddings_for_part) for qv in query_encodings)
+    Q = Q.squeeze(0) # transform Q from 2D to 1D
+    D_packed, D_lengths = load_data_and_construct_tensors(L, db)
+    # Calculate raw scores using matrix multiplication
+    raw_scores = D_packed @ Q.to(dtype=D_packed.dtype).T
+    # Apply optimized maxsim to obtain final per-document scores
+    final_scores = ColBERT.segmented_maxsim(raw_scores, D_lengths)
+    # map the flat list back to the document part keys
+    for i, (title, part) in enumerate(L):
+        scores[(title, part)] = final_scores[i]
+
     # load the source chunk for the top K
     docs_by_score = sorted(scores, key=scores.get, reverse=True)[:K]
     L = []

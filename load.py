@@ -64,9 +64,8 @@ def main():
     #     load_file(compressed_path)
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         # Submit all tasks and hold their futures in a list
-        futures = [executor.submit(load_file, path)
-                   for path in chunks_path.iterdir()
-                   if path.suffix == '.json.gz']
+        L = [path for path in chunks_path.iterdir() if path.suffix == '.gz'][:1000]
+        futures = [executor.submit(load_file, path) for path in L]
         # Iterate over the futures as they complete (whether successfully or due to exceptions)
         for future in as_completed(futures):
             try:

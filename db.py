@@ -2,7 +2,7 @@ from typing import Any, Dict, List
 from cassandra.cluster import Cluster
 from cassandra.query import SimpleStatement
 
-keyspace = "colbert25k"
+keyspace = "colbert"
 
 class DB:
     def __init__(self, **kwargs):
@@ -26,15 +26,15 @@ class DB:
         SELECT title, body
         FROM {keyspace}.chunks
         ORDER BY ada002_embedding ANN OF ?
-        LIMIT 5
+        LIMIT ?
         """
         self.query_ada_stmt = self.session.prepare(query_ada_cql)
 
         query_colbert_ann_cql = f"""
-        SELECT title, part
+        SELECT title, part, bert_embedding
         FROM {keyspace}.colbert_embeddings
         ORDER BY bert_embedding ANN OF ?
-        LIMIT 5
+        LIMIT ?
         """
         self.query_colbert_ann_stmt = self.session.prepare(query_colbert_ann_cql)
 

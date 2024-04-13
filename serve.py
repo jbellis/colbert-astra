@@ -30,20 +30,33 @@ def maxsim(qv, embeddings):
     return max(qv @ e for e in embeddings)
 
 def retrieve_colbert(query):
+    K = 5
     query_encodings = encode(query)
     # find the most relevant documents
-    docparts = set()
+    docparts_per_query = {}
     for qv in query_encodings:
-        rows = db.session.execute(db.query_colbert_ann_stmt, [list(qv)])
-        docparts.update((row.title, row.part) for row in rows)
-    # score each document
+        rows = db.session.execute(db.query_colbert_ann_stmt, [list(qv), K])
+        # set the value to the max of any existing value and the new one
+        for row in rows:
+            key = (row.title, row.part, qv)
+            value = qv @ tensor(row.bert_embedding)
+            docparts_per_query[key] = max(docparts_per_query.get(key, -1), value)
+
+    # group by document part, summing the score
+    docparts = {}
+    for (title, part, qv), score in docparts_per_query.items():
+        docparts[(title, part)] = docparts.get((title, part), 0) + score
+    # top 2K document parts
+    L = sorted(docparts, key=docparts.get, reverse=True)[:2*K]
+
+    # fully score each document in the top 2K
     scores = {}
-    for title, part in docparts:
+    for title, part in L:
         rows = db.session.execute(db.query_colbert_parts_stmt, [title, part])
         embeddings_for_part = [tensor(row.bert_embedding) for row in rows]
         scores[(title, part)] = sum(maxsim(qv, embeddings_for_part) for qv in query_encodings)
-    # load the source chunk for the top 5
-    docs_by_score = sorted(scores, key=scores.get, reverse=True)[:5]
+    # load the source chunk for the top K
+    docs_by_score = sorted(scores, key=scores.get, reverse=True)[:K]
     L = []
     for title, part in docs_by_score:
         rs = db.session.execute(db.query_part_by_pk_stmt, [title, part])

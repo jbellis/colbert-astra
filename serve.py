@@ -48,46 +48,64 @@ def load_data_and_construct_tensors(L, db):
 
     return D_packed, D_lengths
 
+
+MAX_ASTRA_LIMIT = 1000
 def retrieve_colbert(query):
-    K = 5
+    n_docs = 5 # number of documents that we return
     Q = encode(query)
     query_encodings = Q[0]
-    # find the most relevant documents
+
+    # compute the max score for each term for each doc
     docparts_per_query = {}
+    # the number of results per term, k, should be larger than n_docs,
+    # but the larger n_docs is the less we need to expand it
+    raw_k = max(1.0, 0.979 + 4.021 * n_docs ** 0.761) # f(1) = 5.0, f(100) = 1.1, f(1000) = 1.0
+    k = min(MAX_ASTRA_LIMIT, int(raw_k))
     for qv in query_encodings:
-        rows = db.session.execute(db.query_colbert_ann_stmt, [list(qv), K])
-        # set the value to the max of any existing value and the new one
+        # loop until we find at least K/2 distinct values
+        limit = k
+        rows = []
+        while limit <= min(MAX_ASTRA_LIMIT, 8*n_docs):
+            # pull resultset into a list so we can iterate over it twice
+            rows = list(db.session.execute(db.query_colbert_ann_stmt, [list(qv), limit]))
+            distinct_documents = set(row.title for row in rows) # this needs to use the primary key
+            if len(distinct_documents) >= k / 2:
+                break
+            limit *= 2
+        # record the scores
         for row in rows:
             key = (row.title, row.part, qv)
             value = qv @ torch.tensor(row.bert_embedding)
             docparts_per_query[key] = max(docparts_per_query.get(key, -1), value)
+    if not docparts_per_query:
+        return [] # empty database
 
     # group by document part, summing the score
     docparts = {}
     for (title, part, qv), score in docparts_per_query.items():
         docparts[(title, part)] = docparts.get((title, part), 0) + score
-    # top 2K document parts
-    L = sorted(docparts, key=docparts.get, reverse=True)[:2*K]
+    # limit the candidates for the full, expensive scoring to 2x the count requested
+    candidates = sorted(docparts, key=docparts.get, reverse=True)[:2*n_docs]
 
-    # fully score each document in the top 2K
+    # fully score each document in the top candidates
     scores = {}
     Q = Q.squeeze(0) # transform Q from 2D to 1D
-    D_packed, D_lengths = load_data_and_construct_tensors(L, db)
+    D_packed, D_lengths = load_data_and_construct_tensors(candidates, db)
     # Calculate raw scores using matrix multiplication
     raw_scores = D_packed @ Q.to(dtype=D_packed.dtype).T
     # Apply optimized maxsim to obtain final per-document scores
     final_scores = ColBERT.segmented_maxsim(raw_scores, D_lengths)
     # map the flat list back to the document part keys
-    for i, (title, part) in enumerate(L):
+    for i, (title, part) in enumerate(candidates):
         scores[(title, part)] = final_scores[i]
 
-    # load the source chunk for the top K
-    docs_by_score = sorted(scores, key=scores.get, reverse=True)[:K]
-    L = []
+    # load the source chunk for the top results
+    docs_by_score = sorted(scores, key=scores.get, reverse=True)[:k]
+    results = []
     for title, part in docs_by_score:
         rs = db.session.execute(db.query_part_by_pk_stmt, [title, part])
-        L.append({'title': title, 'body': rs.one().body})
-    return L
+        results.append({'title': title, 'body': rs.one().body})
+    return results
 
 
 def format_stdout(L):

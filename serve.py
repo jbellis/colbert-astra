@@ -68,7 +68,7 @@ def retrieve_colbert(query):
         while limit <= min(MAX_ASTRA_LIMIT, 8*n_docs):
             # pull resultset into a list so we can iterate over it twice
             rows = list(db.session.execute(db.query_colbert_ann_stmt, [list(qv), limit]))
-            distinct_documents = set(row.title for row in rows) # this needs to use the primary key
+            distinct_documents = set((row.title, row.part) for row in rows) # this needs to use the primary key
             if len(distinct_documents) >= k / 2:
                 break
             limit *= 2

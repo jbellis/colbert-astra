@@ -95,11 +95,14 @@ def format_stdout(L):
 
 if __name__ == '__main__':
     while True:
-        query = input('Enter a query: ')
+        try:
+            query = input('Enter a query: ')
+        except (EOFError, KeyboardInterrupt):
+            break
         print('\n# Retrieving from ColBERT #\n')
         print(format_stdout(retrieve_colbert(query)))
 
-        print('\n\n# Retrieving from ADA #\n')
-        print(format_stdout(retrieve_ada(query)))
+        # print('\n\n# Retrieving from ADA #\n')
+        # print(format_stdout(retrieve_ada(query)))
 
         print()

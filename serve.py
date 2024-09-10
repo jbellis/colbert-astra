@@ -9,23 +9,7 @@ from colbert.modeling.colbert import ColBERT
 _cf = ColBERTConfig(checkpoint='checkpoints/colbertv2.0')
 _cp = Checkpoint(_cf.checkpoint, colbert_config=_cf)
 ColBERT.try_load_torch_extensions(False) # enable segmented_maxsim even if gpu is detected
-
-
-def encode(query_st):
-    print(query_st)
-    input_ids, attention_mask = _cp.query_tokenizer.tensorize([query_st])
-    print(attention_mask)
-
-    Q = _cp.bert(input_ids, attention_mask=attention_mask)[0]
-    Q = _cp.linear(Q)
-
-    mask = torch.tensor(_cp.mask(input_ids, skiplist=[]), device=_cp.device).unsqueeze(2).float()
-    print('mask:', mask)
-    Q = Q * mask
-    print('Q', Q)
-    Q = torch.nn.functional.normalize(Q, p=2, dim=2)
-    print('normailized', Q)
-    return Q
+encode = lambda q: _cp.queryFromText([q])
 
 
 client = OpenAI(api_key=open('openai.key', 'r').read().splitlines()[0])
@@ -41,6 +25,9 @@ def retrieve_ada(query):
     rows = db.session.execute(db.query_ada_stmt, [qv])
     return [{'title': row.title, 'body': row.body} for row in rows]
 
+
+def maxsim(qv, embeddings):
+    return max(qv @ e for e in embeddings)
 
 # construct a single-dimension tensor with all the embeddings packed into it
 # i.e. a tensor of [d1.e1, d1.e2, d2.e1, d2.e2, d2.e3, dN.e1, .. dN.eM] for doc parts 1..N and embeddings 1..M
@@ -65,7 +52,6 @@ def load_data_and_construct_tensors(L, db):
 MAX_ASTRA_LIMIT = 1000
 def retrieve_colbert(query, n_docs=5):
     Q = encode(query)
-    return []
     query_encodings = Q[0]
 
     # compute the max score for each term for each doc

@@ -3,7 +3,7 @@ from openai import OpenAI
 import torch
 from colbert.infra.config import ColBERTConfig
 from colbert.modeling.checkpoint import Checkpoint
-from colbert.modeling.colbert import ColBERT
+from colbert.modeling.colbert import colbert_score_reduce
 
 
 _cf = ColBERTConfig(checkpoint='checkpoints/colbertv2.0')
@@ -61,6 +61,7 @@ def retrieve_colbert(query):
     raw_k = max(1.0, 0.979 + 4.021 * n_docs ** 0.761) # f(1) = 5.0, f(100) = 1.1, f(1000) = 1.0
     k = min(MAX_ASTRA_LIMIT, int(raw_k))
     for qv in query_encodings:
+        qv = qv.cpu()
         # loop until we find at least K/2 distinct values
         limit = k
         rows = []
@@ -88,12 +89,12 @@ def retrieve_colbert(query):
 
     # fully score each document in the top candidates
     scores = {}
-    Q = Q.squeeze(0) # transform Q from 2D to 1D
+    Q = Q.squeeze(0).cpu() # transform Q from 2D to 1D and move to CPU
     D_packed, D_lengths = load_data_and_construct_tensors(candidates, db)
     # Calculate raw scores using matrix multiplication
     raw_scores = D_packed @ Q.to(dtype=D_packed.dtype).T
     # Apply optimized maxsim to obtain final per-document scores
-    final_scores = ColBERT.segmented_maxsim(raw_scores, D_lengths)
+    final_scores = colbert_score_reduce(raw_scores, D_lengths, _cf)
     # map the flat list back to the document part keys
     for i, (title, part) in enumerate(candidates):
         scores[(title, part)] = final_scores[i]

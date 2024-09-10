@@ -70,15 +70,18 @@ def compute_and_store_embeddings(corpus: dict, db: DB):
 
 
 def search_and_benchmark(queries: dict) -> Dict[str, Dict[str, float]]:
-    def search(query: str, top_k: int = 100) -> Dict[str, float]:
+    def search(query_item: Tuple[str, str]) -> Tuple[str, Dict[str, float]]:
+        query_id, query = query_item
         results = retrieve_colbert(query)
-        return {result['title']: 1.0 / (i + 1) for i, result in enumerate(results[:top_k])}
+        return query_id, {result['title']: 1.0 / (i + 1) for i, result in enumerate(results[:100])}
 
     print("Retrieving results for all queries...")
-    results = {}
     start_time = time.time()
-    for query_id, query in tqdm(queries.items(), total=len(queries), desc="Retrieving"):
-        results[query_id] = search(query)
+    
+    num_threads = 16
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        results = dict(tqdm(executor.map(search, queries.items()), total=len(queries), desc="Retrieving"))
+    
     end_time = time.time()
     print(f"Retrieval completed. Time taken: {end_time - start_time:.2f} seconds")
     return results
@@ -87,7 +90,7 @@ def search_and_benchmark(queries: dict) -> Dict[str, Dict[str, float]]:
 def evaluate_model(qrels: dict, results: dict):
     print("Evaluating the model...")
     evaluator = EvaluateRetrieval()
-    metrics = evaluator.evaluate(qrels, results, [10])
+    metrics = evaluator.evaluate(qrels, results, [10, 100])
     metric_names = ["NDCG"]
     for metric_name, scores in zip(metric_names, metrics):
         print(f"{metric_name}:")
@@ -97,7 +100,7 @@ def evaluate_model(qrels: dict, results: dict):
 
 def main():
     corpus, queries, qrels = download_and_load_dataset()
-    compute_and_store_embeddings(corpus, db)
+    # compute_and_store_embeddings(corpus, db)
     results = search_and_benchmark(queries)
     evaluate_model(qrels, results)
 

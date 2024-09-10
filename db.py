@@ -48,7 +48,7 @@ class DB:
         self.query_colbert_parts_stmt = self.session.prepare(query_colbert_parts_cql)
 
         query_part_by_pk = f"""
-        SELECT body
+        SELECT title, body
         FROM {keyspace}.chunks
         WHERE title = ? AND part = ?
         """

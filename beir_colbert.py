@@ -74,12 +74,13 @@ def search_and_benchmark(queries: dict) -> Dict[str, Dict[str, float]]:
         query_id, query = query_item
         k = 100
         results = retrieve_colbert(query, k)
+        print(results)
         return query_id, {result['title']: 1.0 / (i + 1) for i, result in enumerate(results[:k])}
 
     print("Retrieving results for all queries...")
     start_time = time.time()
     
-    num_threads = 16
+    num_threads = 1
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         results = dict(tqdm(executor.map(search, queries.items()), total=len(queries), desc="Retrieving"))
     

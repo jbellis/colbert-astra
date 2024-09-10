@@ -1,8 +1,10 @@
 import itertools
 import os
 import time
+import threading
 from typing import Dict, Tuple
 from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor
 
 from beir import util
 from beir.datasets.data_loader import GenericDataLoader
@@ -26,29 +28,42 @@ def download_and_load_dataset(dataset: str = "scifact") -> Tuple[dict, dict, dic
     return corpus, queries, qrels
 
 
-def compute_and_store_embeddings(corpus: dict, db: DB):
-    print("Preparing corpus for ColBERT...")
-    cf = ColBERTConfig(checkpoint='checkpoints/colbertv2.0')
-    cp = Checkpoint(cf.checkpoint, colbert_config=cf)
-    encoder = CollectionEncoder(cf, cp)
+thread_local_storage = threading.local()
 
+def get_threadlocals():
+    if not hasattr(thread_local_storage, 'encoder'):
+        cf = ColBERTConfig(checkpoint='checkpoints/colbertv2.0')
+        cp = Checkpoint(cf.checkpoint, colbert_config=cf)
+        thread_local_storage.encoder = CollectionEncoder(cf, cp)
+    return thread_local_storage.encoder
+
+
+def process_document(doc_item):
+    encoder = get_threadlocals()
+    doc_id, doc = doc_item
+    title = doc['title']
+    content = doc['text']
+
+    embeddings_flat, counts = encoder.encode_passages([content])
+
+    # split up embeddings_flat by counts, a list of the number of tokens in each passage
+    start_indices = [0] + list(itertools.accumulate(counts[:-1]))
+    embeddings_by_part = [embeddings_flat[start:start + count] for start, count in zip(start_indices, counts)]
+    assert len(embeddings_by_part) == 1  # only one part
+    embeddings = embeddings_by_part[0]
+
+    future = db.session.execute_async(db.insert_chunk_stmt, (title, 0, content, None))
+    execute_concurrent_with_args(db.session, db.insert_colbert_stmt, [(title, 0, i, e) for i, e in enumerate(embeddings)])
+    future.result()
+
+
+def compute_and_store_embeddings(corpus: dict, db: DB):
     print("Encoding and inserting documents...")
     start_time = time.time()
-    for doc_id, doc in tqdm(corpus.items(), desc="Encoding and inserting"):
-        title = doc['title']
-        content = doc['text']
-
-        embeddings_flat, counts = encoder.encode_passages([content])
-
-        # split up embeddings_flat by counts, a list of the number of tokens in each passage
-        start_indices = [0] + list(itertools.accumulate(counts[:-1]))
-        embeddings_by_part = [embeddings_flat[start:start + count] for start, count in zip(start_indices, counts)]
-        assert len(embeddings_by_part) == 1 # only one part
-        embeddings = embeddings_by_part[0]
-
-        future = db.session.execute_async(db.insert_chunk_stmt, (title, 0, content, None))
-        execute_concurrent_with_args(db.session, db.insert_colbert_stmt, [(title, 0, i, e) for i, e in enumerate(embeddings)])
-        future.result()
+    
+    num_threads = 3  # vram-limited :(
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        list(tqdm(executor.map(process_document, corpus.items()), total=len(corpus), desc="Encoding and inserting"))
 
     end_time = time.time()
     print(f"Encoding and insertion completed. Time taken: {end_time - start_time:.2f} seconds")

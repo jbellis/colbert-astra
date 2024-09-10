@@ -9,9 +9,9 @@ from beir import util
 from beir.datasets.data_loader import GenericDataLoader
 from beir.retrieval.evaluation import EvaluateRetrieval
 
-# Download and load the MSMARCO dataset
+# Download and load the NQ dataset
 print("\n1. Downloading and loading dataset...")
-dataset = "msmarco"
+dataset = "nq"
 url = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{}.zip".format(dataset)
 out_dir = os.path.join(os.getcwd(), "datasets")
 data_path = util.download_and_unzip(url, out_dir)
@@ -96,4 +96,4 @@ print("\nMRR:")
 for k, score in mrr.items():
     print(f"  MRR@{k}: {score:.5f}")
 
-print("\nBM25 benchmarking on MSMARCO subset (all queries) completed.")
+print("\nBM25 benchmarking on NQ subset (all queries) completed.")

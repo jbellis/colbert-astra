@@ -80,7 +80,9 @@ print("\n6. Evaluating the model...")
 evaluator = EvaluateRetrieval()
 metrics = evaluator.evaluate(qrels, results, [1, 3, 5, 10, 100])
 
-# Print metrics
+# Calculate MRR
+mrr = evaluator.evaluate_custom(qrels, results, [1, 10, 100], metric="mrr")
+
 # Print metrics
 print("\n7. Evaluation results:")
 metric_names = ["NDCG", "MAP", "Recall", "Precision"]
@@ -88,5 +90,10 @@ for metric_name, scores in zip(metric_names, metrics):
     print(f"{metric_name}:")
     for k, score in scores.items():
         print(f"  {k}: {score:.5f}")
+
+# Print MRR
+print("\nMRR:")
+for k, score in mrr.items():
+    print(f"  MRR@{k}: {score:.5f}")
 
 print("\nBM25 benchmarking on MSMARCO subset (all queries) completed.")

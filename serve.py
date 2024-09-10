@@ -15,9 +15,6 @@ encode = lambda q: _cp.queryFromText([q])
 
 
 client = OpenAI(api_key=open('openai.key', 'r').read().splitlines()[0])
-def log(*args):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}]", *args)
 
 def ada_embedding_of(text: str):
     res = client.embeddings.create(
@@ -63,41 +60,39 @@ def retrieve_colbert(query, n_docs=5):
     docparts_per_query = {}
     # the number of results per term, k, should be larger than n_docs,
     # but the larger n_docs is the less we need to expand it
-    log('ann queries')
+    # FIXME this is giving higher numbers than intended
     raw_k = max(1.0, 0.979 + 4.021 * n_docs ** 0.761) # f(1) = 5.0, f(100) = 1.1, f(1000) = 1.0
     k = min(MAX_ASTRA_LIMIT, int(raw_k))
     for qv in query_encodings:
         qv = qv.cpu()
+        qv_list = list(qv)
         # loop until we find at least K/2 distinct values
         limit = k
         rows = []
         while limit <= min(MAX_ASTRA_LIMIT, 8*n_docs):
             # pull resultset into a list so we can iterate over it twice
-            rows = list(db.session.execute(db.query_colbert_ann_stmt, [list(qv), limit]))
+            rows = list(db.session.execute(db.query_colbert_ann_stmt, [qv_list, qv_list, limit]))
             distinct_documents = set((row.title, row.part) for row in rows) # this needs to use the primary key
-            if len(distinct_documents) >= k / 2:
+            if len(distinct_documents) >= max(2, k / 4):
                 break
             limit *= 2
         # record the scores
         for row in rows:
             key = (row.title, row.part, qv)
-            value = qv @ torch.tensor(row.bert_embedding)
-            docparts_per_query[key] = max(docparts_per_query.get(key, -1), value)
+            docparts_per_query[key] = max(docparts_per_query.get(key, -1), row.similarity)
     if not docparts_per_query:
         return [] # empty database
 
     # group by document part, summing the score
     docparts = {}
-    for (title, part, qv), score in docparts_per_query.items():
-        docparts[(title, part)] = docparts.get((title, part), 0) + score
+    for (title, part, qv), similarity in docparts_per_query.items():
+        docparts[(title, part)] = docparts.get((title, part), 0) + similarity
     # limit the candidates for the full, expensive scoring to 2x the count requested
-    candidates = docparts # sorted(docparts, key=docparts.get, reverse=True)[:2*n_docs]
+    candidates = sorted(docparts, key=docparts.get, reverse=True)[:2*n_docs]
 
     # fully score each document in the top candidates
     Q = Q.squeeze(0).cpu() # transform Q from 2D to 1D
-    log('retrieving', len(candidates), 'candidates')
     D_packed, D_lengths = load_data_and_construct_tensors(candidates, db)
-    log('scoring')
     # Calculate raw scores using matrix multiplication
     raw_scores = D_packed @ Q.to(dtype=D_packed.dtype).T
     # Apply optimized maxsim to obtain final per-document scores
@@ -108,7 +103,6 @@ def retrieve_colbert(query, n_docs=5):
         scores[(title, part)] = final_scores[i]
 
     # load the source chunk for the top results
-    log('fetching result bodies')
     docs_by_score = sorted(scores, key=scores.get, reverse=True)[:n_docs]
     results = execute_concurrent_with_args(db.session, db.query_part_by_pk_stmt, docs_by_score)
     assert results

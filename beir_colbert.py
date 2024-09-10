@@ -74,7 +74,6 @@ def search_and_benchmark(queries: dict) -> Dict[str, Dict[str, float]]:
         query_id, query = query_item
         k = 100
         results = retrieve_colbert(query, k)
-        print(results)
         return query_id, {result['title']: 1.0 / (i + 1) for i, result in enumerate(results[:k])}
 
     print("Retrieving results for all queries...")

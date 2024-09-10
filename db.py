@@ -33,7 +33,7 @@ class DB:
         self.query_ada_stmt = self.session.prepare(query_ada_cql)
 
         query_colbert_ann_cql = f"""
-        SELECT title, part, bert_embedding
+        SELECT title, part, similarity_dot_product(?, bert_embedding) as similarity
         FROM {keyspace}.colbert_embeddings
         ORDER BY bert_embedding ANN OF ?
         LIMIT ?

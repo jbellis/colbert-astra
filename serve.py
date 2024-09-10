@@ -8,6 +8,7 @@ from colbert.modeling.colbert import ColBERT
 
 _cf = ColBERTConfig(checkpoint='checkpoints/colbertv2.0')
 _cp = Checkpoint(_cf.checkpoint, colbert_config=_cf)
+ColBERT.try_load_torch_extensions(False) # enable segmented_maxsim even if gpu is detected
 encode = lambda q: _cp.queryFromText([q])
 
 
@@ -61,6 +62,7 @@ def retrieve_colbert(query):
     raw_k = max(1.0, 0.979 + 4.021 * n_docs ** 0.761) # f(1) = 5.0, f(100) = 1.1, f(1000) = 1.0
     k = min(MAX_ASTRA_LIMIT, int(raw_k))
     for qv in query_encodings:
+        qv = qv.cpu()
         # loop until we find at least K/2 distinct values
         limit = k
         rows = []
@@ -88,7 +90,7 @@ def retrieve_colbert(query):
 
     # fully score each document in the top candidates
     scores = {}
-    Q = Q.squeeze(0) # transform Q from 2D to 1D
+    Q = Q.squeeze(0).cpu() # transform Q from 2D to 1D
     D_packed, D_lengths = load_data_and_construct_tensors(candidates, db)
     # Calculate raw scores using matrix multiplication
     raw_scores = D_packed @ Q.to(dtype=D_packed.dtype).T

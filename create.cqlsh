@@ -1,11 +1,6 @@
-create keyspace colbert WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};
+-- create keyspace colbertv2 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};
 
--- CREATE TABLE colbert.articles (
---   article_id int PRIMARY KEY,
---   title text,
--- );
-
-USE colbert;
+USE colbertv2;
 CREATE TABLE chunks (
     title text,
     part int,

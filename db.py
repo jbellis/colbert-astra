@@ -2,7 +2,7 @@ from typing import Any, Dict, List
 from cassandra.cluster import Cluster
 from cassandra.query import SimpleStatement
 
-keyspace = "colbert"
+keyspace = "colbertv2"
 
 class DB:
     def __init__(self, **kwargs):

@@ -1,11 +1,10 @@
-from db import DB
+from db import db
 from openai import OpenAI
 import torch
 from colbert.infra.config import ColBERTConfig
 from colbert.modeling.checkpoint import Checkpoint
 from colbert.modeling.colbert import ColBERT
 
-db = DB()
 
 _cf = ColBERTConfig(checkpoint='checkpoints/colbertv2.0')
 _cp = Checkpoint(_cf.checkpoint, colbert_config=_cf)

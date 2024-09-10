@@ -1,12 +1,14 @@
+import os
 from typing import Any, Dict, List
+from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster
 from cassandra.query import SimpleStatement
 
 keyspace = "colbertv2"
 
 class DB:
-    def __init__(self, **kwargs):
-        self.cluster = Cluster(**kwargs)
+    def __init__(self, cluster):
+        self.cluster = cluster
         self.session = self.cluster.connect()
         self.session.default_timeout = 60
 
@@ -51,3 +53,18 @@ class DB:
         WHERE title = ? AND part = ?
         """
         self.query_part_by_pk_stmt = self.session.prepare(query_part_by_pk)
+
+
+astra_token = os.environ.get('ASTRA_DB_TOKEN')
+if astra_token:
+    print('Connecting to Astra')
+    cwd = os.path.dirname(os.path.realpath(__file__))
+    cloud_config = {
+      'secure_connect_bundle': os.path.join(cwd, 'secrets', 'secure-connect-beir.zip')
+    }
+    auth_provider = PlainTextAuthProvider('token', astra_token)
+    cluster = Cluster(cloud=cloud_config, auth_provider=auth_provider)
+    db = DB(cluster)
+else:
+    print('Connecting to local Cassandra')
+    db = DB(Cluster())

@@ -50,8 +50,7 @@ def load_data_and_construct_tensors(L, db):
 
 
 MAX_ASTRA_LIMIT = 1000
-def retrieve_colbert(query):
-    n_docs = 5 # number of documents that we return
+def retrieve_colbert(query, n_docs=5):
     Q = encode(query)
     query_encodings = Q[0]
 
@@ -106,7 +105,7 @@ def retrieve_colbert(query):
     for title, part in docs_by_score:
         rs = db.session.execute(db.query_part_by_pk_stmt, [title, part])
         results.append({'title': title, 'body': rs.one().body})
-    return results
+    return results[:n_docs]
 
 
 def format_stdout(L):

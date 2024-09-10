@@ -72,8 +72,9 @@ def compute_and_store_embeddings(corpus: dict, db: DB):
 def search_and_benchmark(queries: dict) -> Dict[str, Dict[str, float]]:
     def search(query_item: Tuple[str, str]) -> Tuple[str, Dict[str, float]]:
         query_id, query = query_item
-        results = retrieve_colbert(query)
-        return query_id, {result['title']: 1.0 / (i + 1) for i, result in enumerate(results[:100])}
+        k = 100
+        results = retrieve_colbert(query, k)
+        return query_id, {result['title']: 1.0 / (i + 1) for i, result in enumerate(results[:k])}
 
     print("Retrieving results for all queries...")
     start_time = time.time()

@@ -52,23 +52,21 @@ def load_data_and_construct_tensors(L, db):
 
 
 MAX_ASTRA_LIMIT = 1000
-def get_top_chunk_ids(query, n_docs=5):
+def get_top_chunk_ids(query, n_ann_docs, n_colbert_candidates):
     Q = encode(query)
     query_encodings = Q[0]
 
     # compute the max score for each term for each doc
     chunks_per_query = {}
-    raw_k = max(1.0, 0.979 + 4.021 * n_docs ** 0.761)  # f(1) = 5.0, f(100) = 1.1, f(1000) = 1.0
-    k = min(MAX_ASTRA_LIMIT, int(raw_k))
     for qv in query_encodings:
         qv = qv.cpu()
         qv_list = list(qv)
-        limit = k
+        limit = n_ann_docs
         rows = []
-        while limit <= min(MAX_ASTRA_LIMIT, 8*n_docs):
+        while limit <= MAX_ASTRA_LIMIT:
             rows = list(db.session.execute(db.query_colbert_ann_stmt, [qv_list, qv_list, limit]))
             distinct_chunks = set(row.chunk_id for row in rows)
-            if len(distinct_chunks) >= max(2, k / 4):
+            if len(distinct_chunks) >= max(2, n_ann_docs / 4):
                 break
             limit *= 2
         for row in rows:
@@ -80,7 +78,7 @@ def get_top_chunk_ids(query, n_docs=5):
     chunks = {}
     for (chunk_id, qv), similarity in chunks_per_query.items():
         chunks[chunk_id] = chunks.get(chunk_id, 0) + similarity
-    candidates = sorted(chunks, key=chunks.get, reverse=True)[:2*n_docs]
+    candidates = sorted(chunks, key=chunks.get, reverse=True)[:n_colbert_candidates]
 
     # fully score each document in the top candidates
     Q = Q.squeeze(0).cpu() # transform Q from 2D to 1D
@@ -91,8 +89,9 @@ def get_top_chunk_ids(query, n_docs=5):
     final_scores = ColBERT.segmented_maxsim(raw_scores, D_lengths)
     # map the flat list back to the document part keys
     scores = {chunk_id: final_scores[i].item() for i, chunk_id in enumerate(candidates)}
-
+    return scores
     # Return the top n_docs chunk_ids with their scores
+    # FIXME move this into retrieve_colbert
     return dict(sorted(scores.items(), key=lambda x: x[1], reverse=True)[:n_docs])
 
 

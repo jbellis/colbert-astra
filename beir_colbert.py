@@ -75,30 +75,26 @@ def compute_and_store_embeddings(corpus: dict, db: DB):
     print(f"Encoding and insertion completed. Time taken: {end_time - start_time:.2f} seconds")
 
 
-def search_and_benchmark(queries: dict) -> Dict[str, Dict[str, float]]:
+def search_and_benchmark(queries: dict, n_ann_docs: int, n_colbert_candidates: int) -> Dict[str, Dict[str, float]]:
     def search(query_item: Tuple[str, str]) -> Tuple[str, Dict[str, float]]:
         query_id, query = query_item
-        return (query_id, get_top_chunk_ids(query, 100))
+        return (query_id, get_top_chunk_ids(query, n_ann_docs, n_colbert_candidates))
 
-    print("Retrieving results for all queries...")
     start_time = time.time()
-    
     num_threads = 8
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         results = dict(tqdm(executor.map(search, queries.items()), total=len(queries), desc="Retrieving"))
-    
     end_time = time.time()
-    print(f"Retrieval completed. Time taken: {end_time - start_time:.2f} seconds")
+
+    print(f"  Time: {end_time - start_time:.2f} seconds")
     return results
 
 
 def evaluate_model(qrels: dict, results: dict):
-    print("Evaluating the model...")
     evaluator = EvaluateRetrieval()
     metrics = evaluator.evaluate(qrels, results, [10, 100])
     metric_names = ["NDCG"]
     for metric_name, scores in zip(metric_names, metrics):
-        print(f"{metric_name}:")
         for k, score in scores.items():
             print(f"  {k}: {score:.5f}")
 
@@ -106,8 +102,11 @@ def evaluate_model(qrels: dict, results: dict):
 def main():
     corpus, queries, qrels = download_and_load_dataset()
     # compute_and_store_embeddings(corpus, db)
-    results = search_and_benchmark(queries)
-    evaluate_model(qrels, results)
+    for n_ann_docs in [20, 40, 80, 160, 240, 320]:
+        for n_colbert_candidates in [20, 40, 80, 160, 240, 320]:
+            print(f"ANN,COLBERT: {n_ann_docs}, {n_colbert_candidates}")
+            results = search_and_benchmark(queries, n_ann_docs, n_colbert_candidates)
+            evaluate_model(qrels, results)
 
 
 if __name__ == "__main__":

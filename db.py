@@ -3,6 +3,7 @@ from typing import Any, Dict, List
 from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster
 from cassandra.query import SimpleStatement
+from cassandra import ConsistencyLevel
 import openai
 
 keyspace = "colbertv2"
@@ -39,6 +40,7 @@ class DB:
         LIMIT ?
         """
         self.query_ada_stmt = self.session.prepare(query_ada_cql)
+        self.query_ada_stmt.consistency_level = ConsistencyLevel.LOCAL_ONE
 
         query_colbert_ann_cql = f"""
         SELECT chunk_id, similarity_dot_product(?, bert_embedding) as similarity
@@ -47,6 +49,7 @@ class DB:
         LIMIT ?
         """
         self.query_colbert_ann_stmt = self.session.prepare(query_colbert_ann_cql)
+        self.query_colbert_ann_stmt.consistency_level = ConsistencyLevel.LOCAL_ONE
 
         query_colbert_parts_cql = f"""
         SELECT chunk_id, bert_embedding

@@ -3,6 +3,7 @@ from typing import Any, Dict, List
 from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster
 from cassandra.query import SimpleStatement
+import openai
 
 keyspace = "colbertv2"
 
@@ -23,6 +24,13 @@ class DB:
         VALUES (?, ?, ?)
         """
         self.insert_colbert_stmt = self.session.prepare(insert_colbert_cql)
+
+        update_chunk_cql = f"""
+        UPDATE {keyspace}.chunks
+        SET ada002_embedding = ?
+        WHERE id = ?
+        """
+        self.update_dense_embedding_stmt = self.session.prepare(update_chunk_cql)
 
         query_ada_cql = f"""
         SELECT id, title, body

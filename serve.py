@@ -14,7 +14,7 @@ ColBERT.try_load_torch_extensions(False) # enable segmented_maxsim even if gpu i
 encode = lambda q: _cp.queryFromText([q])
 
 
-client = OpenAI(api_key=open('openai.key', 'r').read().splitlines()[0])
+client = OpenAI(api_key=open('secrets/openai_key', 'r').read().splitlines()[0])
 
 def ada_embedding_of(text: str):
     res = client.embeddings.create(

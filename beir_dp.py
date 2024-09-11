@@ -11,7 +11,7 @@ from openai import OpenAI
 from cassandra.concurrent import execute_concurrent_with_args
 
 from db import DB, db
-from serve import get_top_chunk_ids
+from serve import get_top_ids_colbert, get_top_ids_ada, DENSE_MODEL
 
 
 def download_and_load_dataset(dataset: str = "scifact") -> Tuple[dict, dict, dict]:
@@ -19,7 +19,7 @@ def download_and_load_dataset(dataset: str = "scifact") -> Tuple[dict, dict, dic
     url = f"https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{dataset}.zip"
     out_dir = os.path.join(os.getcwd(), "datasets")
     data_path = util.download_and_unzip(url, out_dir)
-    corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="train")
+    corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")
 
     print(f"Dataset loaded. Corpus size: {len(corpus)}, Queries: {len(queries)}, Relevance judgments: {len(qrels)}")
     return corpus, queries, qrels
@@ -41,7 +41,7 @@ def compute_and_store_embeddings(corpus: dict, db: DB):
         texts = [doc['text'] for _, doc in batch]
         response = client.embeddings.create(
             input=texts,
-            model="text-embedding-3-small"
+            model=DENSE_MODEL
         )
         embeddings = [item.embedding for item in response.data]
 
@@ -57,12 +57,12 @@ def compute_and_store_embeddings(corpus: dict, db: DB):
 def search_and_benchmark(queries: dict) -> Dict[str, Dict[str, float]]:
     def search(query_item: Tuple[str, str]) -> Tuple[str, Dict[str, float]]:
         query_id, query = query_item
-        return (query_id, get_top_chunk_ids(query, 100))
+        return (query_id, get_top_ids_ada(query, 100))
 
     print("Retrieving results for all queries...")
     start_time = time.time()
     
-    num_threads = 8
+    num_threads = 4 # 8 hits openai rate limit
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         results = dict(tqdm(executor.map(search, queries.items()), total=len(queries), desc="Retrieving"))
     
@@ -72,7 +72,6 @@ def search_and_benchmark(queries: dict) -> Dict[str, Dict[str, float]]:
 
 
 def evaluate_model(qrels: dict, results: dict):
-    print("Evaluating the model...")
     evaluator = EvaluateRetrieval()
     metrics = evaluator.evaluate(qrels, results, [10, 100])
     metric_names = ["NDCG"]
@@ -84,9 +83,9 @@ def evaluate_model(qrels: dict, results: dict):
 
 def main():
     corpus, queries, qrels = download_and_load_dataset()
-    compute_and_store_embeddings(corpus, db)
-    # results = search_and_benchmark(queries)
-    # evaluate_model(qrels, results)
+    # compute_and_store_embeddings(corpus, db)
+    results = search_and_benchmark(queries)
+    evaluate_model(qrels, results)
 
 
 if __name__ == "__main__":

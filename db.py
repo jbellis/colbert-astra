@@ -34,7 +34,7 @@ class DB:
         self.update_dense_embedding_stmt = self.session.prepare(update_chunk_cql)
 
         query_ada_cql = f"""
-        SELECT id, title, body
+        SELECT id, title, body, similarity_dot_product(ada002_embedding, ?) as similarity
         FROM {keyspace}.chunks
         ORDER BY ada002_embedding ANN OF ?
         LIMIT ?

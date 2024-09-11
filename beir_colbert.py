@@ -11,7 +11,7 @@ from beir.datasets.data_loader import GenericDataLoader
 from beir.retrieval.evaluation import EvaluateRetrieval
 
 from db import DB, db
-from serve import get_top_chunk_ids
+from serve import get_top_ids_colbert
 from colbert.infra.config import ColBERTConfig
 from colbert.modeling.checkpoint import Checkpoint
 from colbert.indexing.collection_encoder import CollectionEncoder
@@ -78,7 +78,7 @@ def compute_and_store_embeddings(corpus: dict, db: DB):
 def search_and_benchmark(queries: dict, n_ann_docs: int, n_colbert_candidates: int) -> Dict[str, Dict[str, float]]:
     def search(query_item: Tuple[str, str]) -> Tuple[str, Dict[str, float]]:
         query_id, query = query_item
-        return (query_id, get_top_chunk_ids(query, n_ann_docs, n_colbert_candidates))
+        return (query_id, get_top_ids_colbert(query, n_ann_docs, n_colbert_candidates))
 
     start_time = time.time()
     num_threads = 8

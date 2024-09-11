@@ -14,19 +14,20 @@ ColBERT.try_load_torch_extensions(False) # enable segmented_maxsim even if gpu i
 encode = lambda q: _cp.queryFromText([q])
 
 
+DENSE_MODEL = "text-embedding-3-small"
 client = OpenAI(api_key=open('secrets/openai_key', 'r').read().splitlines()[0])
 
 def ada_embedding_of(text: str):
     res = client.embeddings.create(
         input=[text],
-        model="text-embedding-ada-002"
+        model=DENSE_MODEL
     )
     return res.data[0].embedding
 
-def retrieve_ada(query):
+def get_top_ids_ada(query, limit):
     qv = ada_embedding_of(query)
-    rows = db.session.execute(db.query_ada_stmt, [qv])
-    return [{'id': row.id, 'title': row.title, 'body': row.body} for row in rows]
+    rows = db.session.execute(db.query_ada_stmt, [qv, qv, limit])
+    return {row.id: row.similarity for row in rows}
 
 
 # construct a single-dimension tensor with all the embeddings packed into it
@@ -52,7 +53,7 @@ def load_data_and_construct_tensors(L, db):
 
 
 MAX_ASTRA_LIMIT = 1000
-def get_top_chunk_ids(query, n_ann_docs, n_colbert_candidates):
+def get_top_ids_colbert(query, n_ann_docs, n_colbert_candidates):
     Q = encode(query)
     query_encodings = Q[0]
 
@@ -96,7 +97,7 @@ def get_top_chunk_ids(query, n_ann_docs, n_colbert_candidates):
 
 
 def retrieve_colbert(query, n_docs=5):
-    top_chunks = get_top_chunk_ids(query, n_docs)
+    top_chunks = get_top_ids_colbert(query, n_docs)
     if not top_chunks:
         return []  # empty database
 

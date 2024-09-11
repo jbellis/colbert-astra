@@ -14,8 +14,14 @@ dataset = "scifact"
 url = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{}.zip".format(dataset)
 out_dir = os.path.join(os.getcwd(), "datasets")
 data_path = util.download_and_unzip(url, out_dir)
-corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test") # train also available
-print(f"Full dataset loaded. Corpus size: {len(corpus)}, Queries: {len(queries)}, Relevance judgments: {len(qrels)}")
+corpus, all_queries, all_qrels = GenericDataLoader(data_folder=data_path).load(split="train")
+print(f"Full dataset loaded. Corpus size: {len(corpus)}, All Queries: {len(all_queries)}, All Relevance judgments: {len(all_qrels)}")
+
+# Limit queries to the first 100 items
+queries = dict(list(all_queries.items())[:100])
+qrels = {qid: all_qrels[qid] for qid in queries.keys() if qid in all_qrels}
+
+print(f"Limited dataset. Queries: {len(queries)}, Relevance judgments: {len(qrels)}")
 
 print("\n2. Preparing full corpus for BM25...")
 corpus_ids = list(corpus.keys())

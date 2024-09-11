@@ -23,8 +23,12 @@ def download_and_load_dataset(dataset: str = "scifact") -> Tuple[dict, dict, dic
     url = f"https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{dataset}.zip"
     out_dir = os.path.join(os.getcwd(), "datasets")
     data_path = util.download_and_unzip(url, out_dir)
-    corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")
-    print(f"Full dataset loaded. Corpus size: {len(corpus)}, Queries: {len(queries)}, Relevance judgments: {len(qrels)}")
+    corpus, all_queries, all_qrels = GenericDataLoader(data_folder=data_path).load(split="train")
+    # Limit queries to the first 100 items
+    queries = dict(list(all_queries.items())[:100])
+    qrels = {qid: all_qrels[qid] for qid in queries.keys() if qid in all_qrels}
+
+    print(f"Dataset loaded. Corpus size: {len(corpus)}, Queries: {len(queries)}, Relevance judgments: {len(qrels)}")
     return corpus, queries, qrels
 
 

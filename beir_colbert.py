@@ -92,7 +92,7 @@ def search_and_benchmark(queries: dict, n_ann_docs: int, n_colbert_candidates: i
 
 def evaluate_model(qrels: dict, results: dict):
     evaluator = EvaluateRetrieval()
-    metrics = evaluator.evaluate(qrels, results, [10, 100])
+    metrics = evaluator.evaluate(qrels, results, [1, 5, 10, 100])
     metric_names = ["NDCG"]
     for metric_name, scores in zip(metric_names, metrics):
         for k, score in scores.items():

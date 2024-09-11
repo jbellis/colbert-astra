@@ -11,7 +11,7 @@ from beir.datasets.data_loader import GenericDataLoader
 from beir.retrieval.evaluation import EvaluateRetrieval
 
 from db import DB, db
-from serve import retrieve_colbert
+from serve import get_top_chunk_ids
 from colbert.infra.config import ColBERTConfig
 from colbert.modeling.checkpoint import Checkpoint
 from colbert.indexing.collection_encoder import CollectionEncoder
@@ -49,7 +49,7 @@ def process_document(doc_item):
     # split up embeddings_flat by counts, a list of the number of tokens in each passage
     start_indices = [0] + list(itertools.accumulate(counts[:-1]))
     embeddings_by_part = [embeddings_flat[start:start + count] for start, count in zip(start_indices, counts)]
-    assert len(embeddings_by_part) == 1  # only one part
+    assert len(embeddings_by_part) == 1  # only one part (chunk)
     embeddings = embeddings_by_part[0]
 
     # Use the _id from the BEIR corpus as the chunk_id
@@ -74,14 +74,12 @@ def compute_and_store_embeddings(corpus: dict, db: DB):
 def search_and_benchmark(queries: dict) -> Dict[str, Dict[str, float]]:
     def search(query_item: Tuple[str, str]) -> Tuple[str, Dict[str, float]]:
         query_id, query = query_item
-        k = 100
-        results = retrieve_colbert(query, k)
-        return query_id, {result['_id']: 1.0 / (i + 1) for i, result in enumerate(results[:k])}
+        return (query_id, get_top_chunk_ids(query, 100))
 
     print("Retrieving results for all queries...")
     start_time = time.time()
     
-    num_threads = 1
+    num_threads = 8
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         results = dict(tqdm(executor.map(search, queries.items()), total=len(queries), desc="Retrieving"))
     

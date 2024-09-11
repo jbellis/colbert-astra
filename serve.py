@@ -52,7 +52,7 @@ def load_data_and_construct_tensors(L, db):
 
 
 MAX_ASTRA_LIMIT = 1000
-def retrieve_colbert(query, n_docs=5):
+def get_top_chunk_ids(query, n_docs=5):
     Q = encode(query)
     query_encodings = Q[0]
 
@@ -75,7 +75,7 @@ def retrieve_colbert(query, n_docs=5):
             key = (row.chunk_id, qv)
             chunks_per_query[key] = max(chunks_per_query.get(key, -1), row.similarity)
     if not chunks_per_query:
-        return []  # empty database
+        return {}  # empty database
 
     chunks = {}
     for (chunk_id, qv), similarity in chunks_per_query.items():
@@ -90,16 +90,25 @@ def retrieve_colbert(query, n_docs=5):
     # Apply optimized maxsim to obtain final per-document scores
     final_scores = ColBERT.segmented_maxsim(raw_scores, D_lengths)
     # map the flat list back to the document part keys
-    scores = {chunk_id: final_scores[i] for i, chunk_id in enumerate(candidates)}
+    scores = {chunk_id: final_scores[i].item() for i, chunk_id in enumerate(candidates)}
+
+    # Return the top n_docs chunk_ids with their scores
+    return dict(sorted(scores.items(), key=lambda x: x[1], reverse=True)[:n_docs])
+
+
+def retrieve_colbert(query, n_docs=5):
+    top_chunks = get_top_chunk_ids(query, n_docs)
+    if not top_chunks:
+        return []  # empty database
 
     # load the source chunk for the top results
-    chunks_by_score = sorted(scores, key=scores.get, reverse=True)[:n_docs]
-    results = execute_concurrent_with_args(db.session, db.query_part_by_pk_stmt, [(chunk_id,) for chunk_id in chunks_by_score])
+    results = execute_concurrent_with_args(db.session, db.query_part_by_pk_stmt, [(chunk_id,) for chunk_id in top_chunks.keys()])
     assert results
     if not all(success for success, _ in results):
         raise Exception('Failed to retrieve chunk')
-    return [dict(_id=row.id, title=row.title, body=row.body)
+    return [dict(_id=row.id, title=row.title, body=row.body, score=top_chunks[row.id])
             for row in (rs.one() for _, rs in results)]
+
 
 def format_stdout(L):
     return '\n'.join(f"{i+1}. {row['title']}\n{row['body']}" for i, row in enumerate(L))

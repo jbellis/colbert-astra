@@ -18,6 +18,8 @@ from db import DB
 #
 # Compute embeddings for articles in .json files, and load directly into Cassandra
 #
+# !!! This was created for a different schema than the one created for BEIR
+#
 
 thread_local_storage = threading.local()
 def get_threadlocals():

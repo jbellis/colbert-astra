@@ -2,21 +2,20 @@
 
 USE colbertv2;
 CREATE TABLE chunks (
+    id text,
     title text,
-    part int,
     body text,
     ada002_embedding vector<float, 1536>,
-    PRIMARY KEY (title, part)
+    PRIMARY KEY (id)
 );
 CREATE CUSTOM INDEX openai_ann ON chunks(ada002_embedding) USING 'StorageAttachedIndex'
   WITH OPTIONS = { 'source_model': 'ada002' };
 
 CREATE TABLE colbert_embeddings (
-    title text,
-    part int,
+    chunk_id text,
     embedding_id int,
     bert_embedding vector<float, 128>,
-    PRIMARY KEY (title, part, embedding_id)
+    PRIMARY KEY (chunk_id, embedding_id)
 );
 CREATE CUSTOM INDEX colbert_ann ON colbert_embeddings(bert_embedding) USING 'StorageAttachedIndex'
   WITH OPTIONS = { 'source_model': 'bert' };

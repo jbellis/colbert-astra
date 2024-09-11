@@ -52,8 +52,10 @@ def process_document(doc_item):
     assert len(embeddings_by_part) == 1  # only one part
     embeddings = embeddings_by_part[0]
 
-    future = db.session.execute_async(db.insert_chunk_stmt, (title, 0, content, None))
-    execute_concurrent_with_args(db.session, db.insert_colbert_stmt, [(title, 0, i, e) for i, e in enumerate(embeddings)])
+    # Use the _id from the BEIR corpus as the chunk_id
+    future = db.session.execute_async(db.insert_chunk_stmt, ((doc_id), title, content, None))
+    execute_concurrent_with_args(db.session, db.insert_colbert_stmt,
+                                 [((doc_id), i, e) for i, e in enumerate(embeddings)])
     future.result()
 
 
@@ -74,7 +76,7 @@ def search_and_benchmark(queries: dict) -> Dict[str, Dict[str, float]]:
         query_id, query = query_item
         k = 100
         results = retrieve_colbert(query, k)
-        return query_id, {result['title']: 1.0 / (i + 1) for i, result in enumerate(results[:k])}
+        return query_id, {result['_id']: 1.0 / (i + 1) for i, result in enumerate(results[:k])}
 
     print("Retrieving results for all queries...")
     start_time = time.time()

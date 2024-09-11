@@ -15,6 +15,8 @@ from db import DB
 #
 # Load .json.gz files into Cassandra
 #
+# !!! This was created for a different schema than the one created for BEIR
+#
 
 thread_local_storage = threading.local()
 def get_threadlocals():

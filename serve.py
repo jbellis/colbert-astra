@@ -90,17 +90,22 @@ def get_top_ids_colbert(query, n_ann_docs, n_colbert_candidates):
 
     # compute the max score for each term for each doc
     chunks_per_query = {}
-    for qv in query_encodings:
+    for n, qv in enumerate(query_encodings):
         qv = qv.cpu()
         qv_list = list(qv)
         limit = n_ann_docs
         rows = []
         while limit <= MAX_ASTRA_LIMIT:
-            rows = list(db.session.execute(db.query_colbert_ann_stmt, [qv_list, qv_list, limit]))
+            try:
+                rows = list(db.session.execute(db.query_colbert_ann_stmt, [qv_list, qv_list, limit]))
+            except:
+                print(f'Failed to retrieve chunks for query of {qv}')
+                raise
             distinct_chunks = set(row.chunk_id for row in rows)
             if len(distinct_chunks) >= max(2, n_ann_docs / 4):
                 break
             limit *= 2
+            print(f'Insufficient chunks for query {n}, retrying with limit {limit}')
         for row in rows:
             key = (row.chunk_id, qv)
             chunks_per_query[key] = max(chunks_per_query.get(key, -1), row.similarity)

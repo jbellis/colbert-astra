@@ -6,12 +6,43 @@ from colbert.infra.config import ColBERTConfig
 from colbert.modeling.checkpoint import Checkpoint
 from colbert.modeling.colbert import ColBERT
 from cassandra.concurrent import execute_concurrent_with_args
+import numpy as np
+from scipy.cluster.hierarchy import linkage, fcluster
 
 
 _cf = ColBERTConfig(checkpoint='checkpoints/colbertv2.0')
 _cp = Checkpoint(_cf.checkpoint, colbert_config=_cf)
 ColBERT.try_load_torch_extensions(False) # enable segmented_maxsim even if gpu is detected
-encode = lambda q: _cp.queryFromText([q])
+
+def pool_query_embeddings(query_embeddings, pool_factor=2):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    query_embeddings = query_embeddings.to(device)
+    
+    # Compute cosine similarity
+    similarities = torch.mm(query_embeddings, query_embeddings.t())
+    # Convert similarities to distances
+    distances = 1 - similarities.cpu().numpy()
+    # Create hierarchical clusters
+    Z = linkage(distances, method='ward')
+
+    # Determine the number of clusters
+    max_clusters = max(query_embeddings.shape[0] // pool_factor, 1)
+    cluster_labels = fcluster(Z, t=max_clusters, criterion='maxclust')
+    
+    # Pool embeddings within each cluster
+    pooled_embeddings = []
+    for cluster_id in range(1, max_clusters + 1):
+        cluster_indices = torch.where(torch.tensor(cluster_labels == cluster_id, device=device))[0]
+        if cluster_indices.numel() > 0:
+            pooled_embedding = query_embeddings[cluster_indices].mean(dim=0)
+            pooled_embeddings.append(pooled_embedding)
+    
+    return torch.stack(pooled_embeddings)
+
+def encode(q):
+    query_embeddings = _cp.queryFromText([q])[0]  # Get embeddings for a single query
+    pooled_embeddings = pool_query_embeddings(query_embeddings)
+    return pooled_embeddings.unsqueeze(0)  # Add batch dimension back
 
 
 DENSE_MODEL = "text-embedding-3-small"

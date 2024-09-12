@@ -102,8 +102,8 @@ def evaluate_model(qrels: dict, results: dict):
 def main():
     corpus, queries, qrels = download_and_load_dataset()
     # compute_and_store_embeddings(corpus, db)
-    for n_ann_docs in [20, 40, 80, 160, 240, 320]:
-        for n_colbert_candidates in [20, 40, 80, 160, 240, 320]:
+    for n_ann_docs in [240]:
+        for n_colbert_candidates in [20]:
             print(f"ANN,COLBERT: {n_ann_docs}, {n_colbert_candidates}")
             results = search_and_benchmark(queries, n_ann_docs, n_colbert_candidates)
             evaluate_model(qrels, results)

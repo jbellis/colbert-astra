@@ -70,8 +70,10 @@ astra_token = os.environ.get('ASTRA_DB_TOKEN')
 if astra_token:
     print('Connecting to Astra')
     cwd = os.path.dirname(os.path.realpath(__file__))
+    scb_path = os.path.join(cwd, 'secrets', 'secure-connect-beir.zip')
+    assert os.path.exists(scb_path)
     cloud_config = {
-      'secure_connect_bundle': os.path.join(cwd, 'secrets', 'secure-connect-beir.zip')
+      'secure_connect_bundle': scb_path
     }
     auth_provider = PlainTextAuthProvider('token', astra_token)
     cluster = Cluster(cloud=cloud_config, auth_provider=auth_provider)
